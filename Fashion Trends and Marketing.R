@@ -1,0 +1,35 @@
+library(dplyr)
+library(ggplot2)
+
+qualtrics <- read.csv(file = "/Users/mihuynh/Downloads/Fashion Trends and Marketing_March 20, 2024_12.33.csv")
+qualtrics_sub <- subset(qualtrics, qualtrics$DistributionChannel != "preview")
+qualtrics_sub <- qualtrics_sub %>% slice(-(1:3))
+qualtrics_sub <- select(qualtrics_sub, -(1:18))
+# The first one said to not use their data in deception form
+
+qualtrics_sub$ParticipantID <- row.names(qualtrics_sub)
+str(qualtrics_sub)
+
+# QUESTIONNAIRE
+questionnaires <- subset(qualtrics_sub, select = grepl("Questionnaire|Masc_fem", colnames(qualtrics_sub), ignore.case = TRUE))
+questionnaires[] <- lapply(questionnaires, as.numeric)
+columns_to_inverse <- c("Questionnaire_4", "Questionnaire_7", "Questionnaire_9", "Questionnaire_11", "Questionnaire_13", "Questionnaire_17", "Questionnaire_18", "Questionnaire_19", "Questionnaire_21")
+
+questionnaires <- questionnaires %>%
+  mutate(across(all_of(columns_to_inverse), ~ 4 - .)) 
+questionnaires$Masc_fem <- ifelse(questionnaires$Masc_fem == 1, "Masculine", "Feminine")
+
+questionnaires <- questionnaires %>%
+  rowwise() %>%
+  mutate(Sum = sum(c_across(where(is.numeric))))
+questionnaires$Participant <- row.names(questionnaires)
+
+# median
+median <- median(questionnaires$Sum, na.rm = TRUE)
+questionnaires$median_group <- cut(questionnaires$Sum, breaks = c(-Inf, median, Inf), labels = c("Below Median", "Above Median"))
+print(questionnaires)
+
+# Scatter plot to show Participant vs. Their Sum
+ggplot(data = questionnaires, mapping = aes(x = as.numeric(Participant), y = Sum)) +
+  geom_point(mapping = aes(color = Masc_fem)) +
+  geom_smooth(mapping = aes(y = median), method = "lm", size = 0.5, se = FALSE, show.legend = TRUE)
